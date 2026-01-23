@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Python File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "Main.py"
+        }
+        // {
+        //     "name": "yt-dlp (debug) [firefox cookies]",
+        //     "type": "debugpy",
+        //     "request": "launch",
+        //     "module": "yt_dlp",
+        //     "args": [
+        //         "-v",
+        //         "--skip-download",
+        //         "--dump-json",
+        //         "--cookies-from-browser",
+        //         "firefox",
+        //         "https://vimeo.com/76979871"
+        //     ],
+        //     "console": "integratedTerminal",
+        //     "justMyCode": false
+        // }
+    ]
+}
