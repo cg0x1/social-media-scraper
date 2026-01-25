@@ -1,18 +1,21 @@
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-@dataclass
+@dataclass(frozen=True)
 class AssetTranscriptLine:
-    offset_ms: float
-    duration_ms: float
+    offset_ms: int
+    duration_ms: int
     total_ticks: int
     content: str
+    content_hash: Optional[str] = None
 
     def to_doc(self) -> Dict[str, Any]:
-        # Keep ES field names exactly as mapped
-        return {
-            "offset_ms": self.offset_ms,
-            "duration_ms": self.duration_ms,
-            "total_ticks": self.total_ticks,
+        doc = {
+            "offset_ms": int(self.offset_ms),
+            "duration_ms": int(self.duration_ms),
+            "total_ticks": int(self.total_ticks),
             "content": self.content,
         }
+        if self.content_hash:
+            doc["content_hash"] = self.content_hash
+        return doc

@@ -48,7 +48,7 @@ class TikTokAsset:
 
     # Transcript
     transcript_lang: Optional[str] = None
-    transcript_text: Optional[str] = None
+    transcript: Optional[str] = None
     transcript_lines: List[AssetTranscriptLine] = field(default_factory=list)
 
     # Non-indexed-but-stored fields from your mapping
@@ -66,7 +66,7 @@ class TikTokAsset:
 
     # Optional: keep subtitles in the object for app use,
     # BUT be careful with ES mapping dynamic:false (see notes below)
-    subtitles: Optional[Dict[str, List[Dict[str, str]]]] = None
+    subtitles: Optional[List[AssetTranscriptLine]] = None
 
     def normalize(self) -> None:
         """

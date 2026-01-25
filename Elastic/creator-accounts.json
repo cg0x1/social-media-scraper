@@ -1,0 +1,29 @@
+{
+  "settings": { "number_of_shards": 1, "number_of_replicas": 1 },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "account_id": { "type": "keyword" },          
+      "platform": { "type": "keyword" },            
+      "platform_account_id": { "type": "keyword" }, 
+      "handle": { "type": "keyword" },              
+      "display_name": { "type": "keyword" },        
+      "profile_url": { "type": "keyword" },
+      "status": { "type": "keyword" },              
+      "first_seen": { "type": "date" },
+      "last_seen": { "type": "date" },
+      "signals": {
+        "type": "object",
+        "dynamic": "strict",
+        "properties": {
+          "website_domains": { "type": "keyword" },
+          "youtube_channel_ids": { "type": "keyword" },
+          "instagram_usernames": { "type": "keyword" },
+          "twitter_usernames": { "type": "keyword" },
+          "emails": { "type": "keyword" }
+        }
+      },
+      "updated_at": { "type": "date" }
+    }
+  }
+}

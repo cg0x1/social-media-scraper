@@ -1,0 +1,37 @@
+{
+  "settings": { "number_of_shards": 1, "number_of_replicas": 1 },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "link_id": { "type": "keyword" },
+      "creator_id": { "type": "keyword" }, 
+      "account_id": { "type": "keyword" }, 
+      "confidence": { "type": "float" },  
+      "status": { "type": "keyword" },    
+      "signals": {
+        "type": "nested",
+        "dynamic": "strict",
+        "properties": {
+          "type": { "type": "keyword" },   
+          "value": { "type": "keyword" },  
+          "weight": { "type": "float" }    
+        }
+      },
+      "evidence": {
+        "type": "object",
+        "dynamic": "strict",
+        "properties": {
+          "matched_domains": { "type": "keyword" },
+          "matched_youtube_channel_ids": { "type": "keyword" },
+          "bio_similarity": { "type": "float" },
+          "handle_similarity": { "type": "float" }
+        }
+      },
+      "created_at": { "type": "date" },
+      "updated_at": { "type": "date" },
+      "approved": { "type": "boolean" },
+      "approved_by": { "type": "keyword" },
+      "approved_at": { "type": "date" }
+    }
+  }
+}

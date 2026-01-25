@@ -88,7 +88,7 @@ class TikTokAssetIndexer:
                             repost_count=entry.get("repost_count"),
                             upload_date=entry.get("upload_date"),
                             transcript_lang=entry.get("transcript_lang"),
-                            transcript_text=entry.get("transcript_text"),
+                            transcript=entry.get("transcript_text"),
                             transcript_lines=lines,
                             duration=entry.get("duration"),
                             timestamp=entry.get("timestamp"),
@@ -98,10 +98,7 @@ class TikTokAssetIndexer:
                             channel_url=entry.get("channel_url"),
                             uploader_url=entry.get("uploader_url"),
                             playlist_webpage_url=entry.get("playlist_webpage_url"),
-
                             thumbnail=entry.get("thumbnail"),
 
                             # only include if your ES mapping supports it
-                            subtitles=entry.get("subtitles"),
-        )
-
+                            subtitles=entry.get("subtitles"), )

@@ -86,13 +86,6 @@ class DataTypeUtility():
         except ValueError:
             return False, 0
 
-@final
-class UnknownAssetDateFormatEventArgs():
-    def __init__(self, message, published, patterns):
-        self.message = message
-        self.published = published
-        self.patterns = patterns
-
 @final 
 class DateUtility():
     
