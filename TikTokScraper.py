@@ -26,7 +26,7 @@ class TikTokScraper:
 
     Notes:
       - yt-dlp returns video["timestamp"] as epoch seconds (int).
-      - Your Elasticsearch 'timestamp' field is stored as ISO UTC date (e.g. 2026-01-25T14:12:00Z).
+      - Elasticsearch 'timestamp' field is stored as ISO UTC date (e.g. 2026-01-25T14:12:00Z).
         This class keeps state in ISO, compares using epoch seconds in-memory,
         and writes asset docs with `timestamp` as ISO UTC string.
     """
@@ -1072,7 +1072,7 @@ class TikTokScraper:
         doc_id = doc["asset_id"]
         es.update(
             index=asset_index,
-            id=doc_id,
+            id=doc["asset_id"], # makes the system-assigned `asset_id` the `_id` value in the document
             doc=doc,
             doc_as_upsert=True,
             refresh=False,

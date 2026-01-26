@@ -1,59 +1,42 @@
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from AssetTranscriptLine import AssetTranscriptLine
 
 @dataclass
 class TikTokAsset:
-    """
-    Mirrors the tiktok-videos-v1 ES mapping (the fields you actually keep/index/store).
-    Notes:
-    - artists is stored as a semicolon-delimited string (per your requirement).
-    - subtitles can be stored, but it's not in the v1 mapping we built earlier; include if you want it stored.
-      If you keep dynamic:false, you must map it or drop it before indexing.
-    """
-    
-    def __init__(self):
-        pass
+    # System + ES identity
+    asset_id: str              # e.g. "tiktok:7599034996917128461"
+    id: str                    # platform video id (raw), e.g. "7599034996917128461"
 
-    # IDs
-    id: str
     display_id: Optional[str] = None
 
-    # Identity
     channel: Optional[str] = None
     channel_id: Optional[str] = None
     uploader: Optional[str] = None
     uploader_id: Optional[str] = None
 
-    # Playlist/profile
     playlist: Optional[str] = None
     playlist_id: Optional[str] = None
     playlist_title: Optional[str] = None
 
-    # Text
     title: Optional[str] = None
     description: Optional[str] = None
 
-    # Artists (flattened)
-    artists: Optional[str] = None  # "A;B;C"
+    artists: Optional[Union[str, List[str]]] = None
 
-    # Stats
     view_count: Optional[int] = None
     like_count: Optional[int] = None
     comment_count: Optional[int] = None
     repost_count: Optional[int] = None
 
-    # Date
     upload_date: Optional[str] = None  # yyyyMMdd
 
-    # Transcript
     transcript_lang: Optional[str] = None
-    transcript: Optional[str] = None
+    transcript_text: Optional[str] = None
     transcript_lines: List[AssetTranscriptLine] = field(default_factory=list)
 
-    # Non-indexed-but-stored fields from your mapping
     duration: Optional[int] = None
-    timestamp: Optional[int] = None
+    timestamp: Optional[str] = None  # ISO string for ES date
     track: Optional[str] = None
 
     webpage_url: Optional[str] = None
@@ -64,29 +47,19 @@ class TikTokAsset:
 
     thumbnail: Optional[str] = None
 
-    # Optional: keep subtitles in the object for app use,
-    # BUT be careful with ES mapping dynamic:false (see notes below)
-    subtitles: Optional[List[AssetTranscriptLine]] = None
+    subtitles: Optional[Dict[str, Any]] = None
 
     def normalize(self) -> None:
-        """
-        Enforce your storage rules before indexing.
-        - artists: if accidentally set as list, flatten to ';'
-        - strip very large/ignored fields if present
-        """
         if isinstance(self.artists, list):
-            self.artists = ";".join([str(x).strip() for x in self.artists if x is not None and str(x).strip()])
+            self.artists = ";".join(
+                [str(x).strip() for x in self.artists if x is not None and str(x).strip()]
+            )
 
-    def to_es_doc(self, include_subtitles: bool = True) -> Dict[str, Any]:
-        """
-        Convert to an ES-ready dict matching tiktok-videos-v1 mapping.
-        include_subtitles:
-          - If your index mapping includes subtitles (enabled:false or mapped), set True.
-          - If mapping is dynamic:false and subtitles NOT mapped, keep False (default).
-        """
+    def to_es_doc(self, *, include_subtitles: bool = False) -> Dict[str, Any]:
         self.normalize()
 
         doc: Dict[str, Any] = {
+            "asset_id": self.asset_id,
             "id": self.id,
             "display_id": self.display_id,
 
@@ -101,7 +74,6 @@ class TikTokAsset:
 
             "title": self.title,
             "description": self.description,
-
             "artists": self.artists,
 
             "view_count": self.view_count,
@@ -115,7 +87,6 @@ class TikTokAsset:
             "transcript_text": self.transcript_text,
             "transcript_lines": [l.to_doc() for l in self.transcript_lines],
 
-            # stored but not indexed
             "duration": self.duration,
             "timestamp": self.timestamp,
             "track": self.track,
@@ -129,7 +100,6 @@ class TikTokAsset:
             "thumbnail": self.thumbnail,
         }
 
-        # Remove None values to reduce payload size
         doc = {k: v for k, v in doc.items() if v is not None}
 
         if include_subtitles and self.subtitles is not None:
