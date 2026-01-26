@@ -4,6 +4,9 @@ from AssetTranscriptLine import AssetTranscriptLine
 
 @dataclass
 class TikTokAsset:
+    """
+    Represents a Video found on a creator's page.
+    """
     # System + ES identity
     asset_id: str              # e.g. "tiktok:7599034996917128461"
     id: str                    # platform video id (raw), e.g. "7599034996917128461"

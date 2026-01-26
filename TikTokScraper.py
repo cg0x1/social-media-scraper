@@ -10,7 +10,7 @@ from AssetTranscriptLine import AssetTranscriptLine
 from TikTokAssetMapper import TikTokAssetMapper, TikTokAssetMapperOptions
 
 
-class TikTokScraper:
+class TikTokScraper_ORIGINAL:
     """
     A complete TikTok scraper that:
       - Crawls newest->oldest (default), with hard caps
