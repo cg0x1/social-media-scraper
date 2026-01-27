@@ -134,14 +134,13 @@ def build_tiktok_crawl_service(
 
 if __name__ == "__main__":
 
-    from TikTokScraper import TikTokScraper_ORIGINAL
     from elasticsearch7 import Elasticsearch
     
     es = Elasticsearch("http://localhost:9200", request_timeout=30,)
     
     service = build_tiktok_crawl_service(es, state_index="tiktok-crawl-state", asset_index="tiktok-assets", hash_len=32)
     
-    target_profile = "@donlemon"
+    target_profile = "@meidastouch"
     
     target_profile_url = f"https://www.tiktok.com/{target_profile}"
     
@@ -161,16 +160,3 @@ if __name__ == "__main__":
     print("Inventory:", run_metrics["inventory_count"], "/", run_metrics["requested_inventory"])
     print("Hydrated:", run_metrics["hydrated_success"])
     print("Errors:", run_metrics["hydrated_errors"])
-
-
-    # t = TikTokScraper_ORIGINAL(hash_len=32)
-    # results = t.crawl_newest_with_es_state(es=es,
-    #                                         asset_index="tiktok-assets",
-    #                                         download_archive="last_seen.txt",
-    #                                         hydrate_cap=5,
-    #                                         store_all_languages=False,
-    #                                         inventory_limit=5,
-    #                                         profile=target_profile,
-    #                                         playlist_url=target_profile_url,
-    #                                         proxy=PROXY_URL)
-    # print(t)

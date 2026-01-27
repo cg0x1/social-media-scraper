@@ -1,24 +1,24 @@
 from __future__ import annotations
 
+import random
+import time
 import hashlib
 import logging
 import re
+import requests
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional, Tuple
-
-import requests
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Callable, TypeVar
 from elasticsearch7 import Elasticsearch, helpers
 from yt_dlp import YoutubeDL
-
 from TikTokAsset import TikTokAsset
 from TikTokAssetTranscript import TikTokAssetTranscript, TikTokTranscriptLine
 from RateLimiter import RateLimiter
 
-import random
-import time
-from typing import Callable, Tuple, TypeVar
-
+"""
+Generic type definition
+"""
 T = TypeVar("T")
 
 # ============================================================
@@ -26,32 +26,87 @@ T = TypeVar("T")
 # ============================================================
 
 def utc_now_iso() -> str:
+    """
+    Docstring for utc_now_iso
+    
+    :return: Description
+    :rtype: str
+    """
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def epoch_to_iso_utc(ts_seconds: int) -> str:
+    """
+    Docstring for epoch_to_iso_utc
+    
+    :param ts_seconds: Description
+    :type ts_seconds: int
+    :return: Description
+    :rtype: str
+    """
     return datetime.fromtimestamp(int(ts_seconds), tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def iso_utc_to_epoch(iso_str: str) -> int:
+    """
+    Docstring for iso_utc_to_epoch
+    
+    :param iso_str: Description
+    :type iso_str: str
+    :return: Description
+    :rtype: int
+    """
     dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
     return int(dt.timestamp())
 
-
 class ScrapeError(RuntimeError):
+    """
+    Docstring for ScrapeError
+    
+    :var Notes: Description
+    :var Notes: Description
+    :var logic: Description
+    :vartype logic: choose
+    :var Produces: Description
+    :var Orchestrates: Description
+    :var backoff: Description
+    """
     pass
 
 
 class ParseError(RuntimeError):
+    """
+    Docstring for ParseError
+    
+    :var Notes: Description
+    :var Notes: Description
+    :var logic: Description
+    :vartype logic: choose
+    :var Produces: Description
+    :var Orchestrates: Description
+    :var backoff: Description
+    """
     pass
 
 
 class StorageError(RuntimeError):
+    """
+    Docstring for StorageError
+    
+    :var Notes: Description
+    :var Notes: Description
+    :var logic: Description
+    :vartype logic: choose
+    :var Produces: Description
+    :var Orchestrates: Description
+    :var backoff: Description
+    """
     pass
 
-
 class LoggerMixin:
-    """Convenience mixin so every class has a logger with consistent naming."""
+    """
+    Convenience mixin so every class has a logger with consistent naming.
+    """
     @property
     def log(self) -> logging.Logger:
         return logging.getLogger(self.__class__.__name__)
@@ -113,24 +168,44 @@ class TikTokScraper(LoggerMixin):
         return opts
 
     @staticmethod
-    def ydl_hydrate_options(
-        *,
-        proxy: Optional[str],
-        quiet: bool = False,
-        download_archive: Optional[str] = None,
-        verbose: bool = True,
-        retries: int = 2,
-        sleep_interval: int = 2,
-        max_sleep_interval: int = 5,
-        sleep_interval_requests: int = 1,
-        include_subtitles: bool = True,
-    ) -> Dict[str, Any]:
+    def ydl_hydrate_options(*,
+                            proxy: Optional[str],
+                            quiet: bool = False,
+                            download_archive: Optional[str] = None,
+                            verbose: bool = True,
+                            retries: int = 2,
+                            sleep_interval: int = 2,
+                            max_sleep_interval: int = 5,
+                            sleep_interval_requests: int = 1,
+                            include_subtitles: bool = True,
+                        ) -> Dict[str, Any]:
         """
         Hydration pass: fetch full metadata for a single video URL.
 
         Notes:
         - extract_flat=False gives full info dict.
         - noplaylist=True prevents accidental playlist expansion during hydration.
+        
+        :param proxy: Description
+        :type proxy: Optional[str]
+        :param quiet: Description
+        :type quiet: bool
+        :param download_archive: Description
+        :type download_archive: Optional[str]
+        :param verbose: Description
+        :type verbose: bool
+        :param retries: Description
+        :type retries: int
+        :param sleep_interval: Description
+        :type sleep_interval: int
+        :param max_sleep_interval: Description
+        :type max_sleep_interval: int
+        :param sleep_interval_requests: Description
+        :type sleep_interval_requests: int
+        :param include_subtitles: Description
+        :type include_subtitles: bool
+        :return: Description
+        :rtype: Dict[str, Any]
         """
         opts: Dict[str, Any] = {
             "skip_download": True,
@@ -739,25 +814,24 @@ class TikTokCrawlService(LoggerMixin):
         :param discovery_interval_wait_seconds: Description
         :type discovery_interval_wait_seconds: float
         """
-        self.scraper = scraper
-        self.caption_fetcher = caption_fetcher
-        self.caption_selector = caption_selector
-        self.transcript_parser = transcript_parser
-        self.asset_factory = asset_factory
-        self.state_repo = state_repo
-        self.asset_repo = asset_repo
-        self.transcript_repo = transcript_repo        
-        self._rate_limiter = RateLimiter(min_interval_s=discovery_interval_wait_seconds)
+        self._scraper = scraper
+        self._caption_fetcher = caption_fetcher
+        self._caption_selector = caption_selector
+        self._transcript_parser = transcript_parser
+        self._asset_factory = asset_factory
+        self._state_repo = state_repo
+        self._asset_repo = asset_repo
+        self._transcript_repo = transcript_repo        
+        self._hydrate_rate_limiter = RateLimiter(min_interval_s=discovery_interval_wait_seconds,)
 
-    def with_backoff_tiktok(
-        fn: Callable[[], T],
-        *,
-        max_attempts: int = 6,
-        base_delay_s: float = 1.25,
-        max_delay_s: float = 45.0,
-        retry_on: Tuple[type, ...] = (Exception,),
-        on_retry=None,
-    ) -> T:
+    def _with_backoff_tiktok(self,
+                             fn: Callable[[], T],
+                             *,
+                             max_attempts: int = 6,
+                             base_delay_s: float = 1.25,
+                             max_delay_s: float = 45.0,
+                             retry_on: Tuple[type, ...] = (Exception,),
+                            on_retry=None,) -> T:
         """
         TikTok-tuned backoff:
         - bounded full jitter
@@ -868,13 +942,13 @@ class TikTokCrawlService(LoggerMixin):
         :return: Description
         :rtype: Tuple[str, str, List[TikTokTranscriptLine]]
         """        
-        captions = self.caption_selector.get_tracks_by_language(hydrated, prefer_requested=False, exts={"vtt", "srt"},)
+        captions = self._caption_selector.get_tracks_by_language(hydrated, prefer_requested=False, exts={"vtt", "srt"},)
         if not captions:
             return None, None, None
             # present = [k for k in ("requested_subtitles", "subtitles", "automatic_captions") if hydrated.get(k)]
             # raise ScrapeError(f"No caption tracks found. Present caption keys={present}")
 
-        chosen = self.caption_selector.pick_language(captions)
+        chosen = self._caption_selector.pick_language(captions)
         if not chosen:
             raise ScrapeError(f"Could not select caption language. langs={list(captions.keys())}")
 
@@ -882,16 +956,16 @@ class TikTokCrawlService(LoggerMixin):
         
         headers = hydrated.get("http_headers") or {}
 
-        raw = self.caption_fetcher.fetch_text(track["url"], headers=headers, proxy=proxy)
+        raw = self._caption_fetcher.fetch_text(track["url"], headers=headers, proxy=proxy)
 
         # Guard: sometimes an HTML error page shows instead of VTT/SRT
         head = raw.lstrip()[:200].lower()
         if "<html" in head:
             raise ScrapeError(f"Caption fetch returned HTML (blocked/expired). lang={chosen} url={track.get('url')}")
 
-        text = self.transcript_parser.vtt_or_srt_to_text(raw)
+        text = self._transcript_parser.vtt_or_srt_to_text(raw)
         
-        lines = self.transcript_parser.parse_to_lines(raw)
+        lines = self._transcript_parser.parse_to_lines(raw)
 
         if not text and not lines:
             raise ParseError(f"Caption fetched but parsed empty transcript. lang={chosen} url={track.get('url')}")
@@ -899,7 +973,7 @@ class TikTokCrawlService(LoggerMixin):
         return chosen, text, lines
 
     @staticmethod
-    def assess_pagination(
+    def _construct_trace(
         *,
         requested_inventory: int,
         inventory_entries: List[Dict[str, Any]],
@@ -964,18 +1038,17 @@ class TikTokCrawlService(LoggerMixin):
             "flags": flags,
         }
 
-    def crawl_newest_with_es_state(
-        self,
-        *,
-        profile: str,
-        playlist_url: str,
-        source_id: str,
-        proxy: Optional[str] = None,
-        inventory_limit: int = 10,
-        hydrate_cap: int = 10,
-        download_archive: str = "tiktok_seen.txt",
-        save_assets: bool = True,
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+    def crawl_newest_with_es_state(self,
+                                   *,
+                                   profile: str,
+                                   playlist_url: str,
+                                   source_id: str,
+                                   proxy: Optional[str] = None,
+                                   inventory_limit: int = 10,
+                                   hydrate_cap: int = 10,
+                                   download_archive: str = "tiktok_seen.txt",
+                                   save_assets: bool = True,
+                                ) -> Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
         """
         Crawls the specified profile using Elasticsearch for historical tracing persistence
         
@@ -1000,23 +1073,24 @@ class TikTokCrawlService(LoggerMixin):
         :rtype: Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]
         """        
         # Ensure persistence is ready
-        self.state_repo.ensure_index()
+        self._state_repo.ensure_index()
         if save_assets:
-            self.asset_repo.ensure_index_exists()
-            self.transcript_repo.ensure_index_exists()
+            self._asset_repo.ensure_index_exists()
+            self._transcript_repo.ensure_index_exists()
 
-        state = self.state_repo.load(platform="tiktok", profile=profile, profile_url=playlist_url)
+        state = self._state_repo.load(platform="tiktok", profile=profile, profile_url=playlist_url)
         known_iso = state.get("known_timestamp_iso")
         stop_epoch = iso_utc_to_epoch(known_iso) if known_iso else 0
 
         # `inventory_limit` is the max number of videos pulled from a playlist
-        inventory = self.scraper.inventory(playlist_url, proxy=proxy, limit=inventory_limit, inventory_archive=download_archive)
+        inventory = self._scraper.inventory(playlist_url, proxy=proxy, limit=inventory_limit, inventory_archive=download_archive)
 
         inventory = inventory[:inventory_limit] # hard cap
 
         hydrated: List[Dict[str, Any]] = []
         hydrated_ts: List[int] = []
         errors = 0
+        num_missing_transcripts = 0
 
         asset_docs: List[Dict[str, Any]] = []
         transcript_docs: List[Dict[str, Any]] = []
@@ -1030,11 +1104,11 @@ class TikTokCrawlService(LoggerMixin):
                 continue
 
             try:
-                #v = self.scraper.hydrate(url, proxy=proxy,)#, max_playlist=inventory_limit)
+                #v = self._scraper.hydrate(url, proxy=proxy,)#, max_playlist=inventory_limit)
                 
                 def do_hydrate():
-                    self._rate_limiter.wait()
-                    return self.scraper.hydrate(url, proxy=proxy)
+                    self._hydrate_rate_limiter.wait()
+                    return self._scraper.hydrate(url, proxy=proxy)
 
                 v = self._with_backoff(do_hydrate,
                                         max_attempts=2,
@@ -1043,6 +1117,15 @@ class TikTokCrawlService(LoggerMixin):
                                         jitter_s=0.6,
                                         on_retry=lambda attempt, delay, ex: self.log.warning(
                                             "hydrate retry %d in %.1fs url=%s err=%s", attempt, delay, url, ex),)
+                
+                # def do_hydrate_tiktok():
+                #     self._hydrate_rate_limiter.wait()
+                #     return self._scraper.hydrate(url, proxy=proxy, download_archive=download_archive, retries=1)
+
+                # info = self._with_backoff_tiktok(do_hydrate_tiktok,
+                #                                 on_retry=lambda attempt, delay, ex: self.log.warning(
+                #                                     "hydrate retry=%d sleep=%.2fs url=%s err=%s", attempt, delay, url, ex
+                #                                 ), )
 
 
                 ts = int(v.get("timestamp") or 0)
@@ -1055,7 +1138,7 @@ class TikTokCrawlService(LoggerMixin):
 
                     subtitles_map = self._subtitles_lang_url_map(v)
 
-                    asset, transcript_obj = self.asset_factory.build_asset_and_transcript(
+                    asset, transcript_obj = self._asset_factory.build_asset_and_transcript(
                         v,
                         source_id=source_id,
                         transcript_lang=lang,
@@ -1072,6 +1155,7 @@ class TikTokCrawlService(LoggerMixin):
                     hydrated_ts.append(ts)
                 else:
                     self.log.info(f"Skipped The asset at {url}; no transcript")
+                    num_missing_transcripts += 1
                 
                 if stop_epoch and ts and ts <= stop_epoch:
                     break
@@ -1084,13 +1168,12 @@ class TikTokCrawlService(LoggerMixin):
 
         hydrated_sorted = sorted(hydrated, key=lambda e: e.get("timestamp") or 0, reverse=True)
 
-        run = self.assess_pagination(
-            requested_inventory=inventory_limit,
-            inventory_entries=inventory,
-            hydrated_success=len(hydrated),
-            hydrated_errors=errors,
-            hydrated_timestamps=hydrated_ts,
-        )
+        run = self._construct_trace(requested_inventory=inventory_limit,
+                                    inventory_entries=inventory,
+                                    hydrated_success=len(hydrated),
+                                    hydrated_errors=errors,
+                                    hydrated_timestamps=hydrated_ts,
+                                )
         run.update(
             {
                 "at": utc_now_iso(),
@@ -1102,8 +1185,9 @@ class TikTokCrawlService(LoggerMixin):
         )
 
         if save_assets:
-            run["asset_save"] = self.asset_repo.create_only_bulk(asset_docs, refresh=False)
-            run["transcript_save"] = self.transcript_repo.create_only_bulk(transcript_docs, refresh=False)
+            run["asset_save"] = self._asset_repo.create_only_bulk(asset_docs, refresh=False)
+            run["transcript_save"] = self._transcript_repo.create_only_bulk(transcript_docs, refresh=False)
+            run["transcript_missing"] = num_missing_transcripts
 
             self.log.info("Bulk results: asset_save=%s transcript_save=%s", run.get("asset_save"), run.get("transcript_save"))
 
@@ -1119,6 +1203,6 @@ class TikTokCrawlService(LoggerMixin):
 
         state["last_run"] = run
         
-        self.state_repo.save(state) # save the trace history of this run
+        self._state_repo.save(state) # save the trace history of this run
 
         return hydrated_sorted, run, state
