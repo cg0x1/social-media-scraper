@@ -37,13 +37,13 @@ PUT creator-entities
 ```
 ___
 
-## creator-accounts (Account nodes)
+## tiktok-sources (Account nodes)
 
 Deterministic _id: <platform>:<account_id>
 For TikTok: tiktok:<uploader_id> (matches your state ID scheme)
 
 ```json
-PUT creator-accounts
+PUT tiktok-sources
 {
   "settings": { "number_of_shards": 1, "number_of_replicas": 1 },
   "mappings": {
@@ -79,7 +79,7 @@ PUT creator-accounts
 ```
 ___
 
-## creator-account-links (Edges)
+## tiktok-source-links (Edges)
 
 Deterministic _id: link:<creator_id>:<account_id>
 
@@ -140,7 +140,7 @@ This is where you store:
 - (optional) "human approved” flag
 
 ```json
-PUT creator-account-links
+PUT tiktok-source-links
 {
   "settings": { "number_of_shards": 1, "number_of_replicas": 1 },
   "mappings": {
@@ -247,7 +247,7 @@ PUT _component_template/ct_creator_entities_mappings_v1
 
 ```
 
-## 1.3 Component template: `creator-accounts` mappings
+## 1.3 Component template: `tiktok-sources` mappings
 
 > Deterministic _id will be: tiktok:<uploader_id> for TikTok accounts.
 
@@ -293,7 +293,7 @@ PUT _component_template/ct_creator_accounts_mappings_v1
 }
 ```
 
-## 1.4 Component template: `creator-account-links` mappings
+## 1.4 Component template: `tiktok-source-links` mappings
 
 ```json
 PUT _component_template/ct_creator_account_links_mappings_v1
@@ -363,12 +363,12 @@ PUT _index_template/it_creator_entities_v1
 }
 ```
 
-### `creator-accounts` index template
+### `tiktok-sources` index template
 
 ```json
 PUT _index_template/it_creator_accounts_v1
 {
-  "index_patterns": ["creator-accounts"],
+  "index_patterns": ["tiktok-sources"],
   "composed_of": [
     "ct_common_settings_v1",
     "ct_creator_accounts_mappings_v1"
@@ -378,12 +378,12 @@ PUT _index_template/it_creator_accounts_v1
 }
 ```
 
-### `creator-account-links` index template
+### `tiktok-source-links` index template
 
 ```json
 PUT _index_template/it_creator_account_links_v1
 {
-  "index_patterns": ["creator-account-links"],
+  "index_patterns": ["tiktok-source-links"],
   "composed_of": [
     "ct_common_settings_v1",
     "ct_creator_account_links_mappings_v1"

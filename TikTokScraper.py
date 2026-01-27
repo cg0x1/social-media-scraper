@@ -6,9 +6,8 @@ import requests
 from typing import Any, Dict, List, Optional, Tuple
 from elasticsearch7 import Elasticsearch, helpers
 from yt_dlp import YoutubeDL
-from AssetTranscriptLine import AssetTranscriptLine
 from TikTokAssetMapper import TikTokAssetMapper, TikTokAssetMapperOptions
-
+from TikTokAssetTranscript import TikTokTranscriptLine
 
 class TikTokScraper_ORIGINAL:
     """
@@ -497,7 +496,7 @@ class TikTokScraper_ORIGINAL:
             + int(ms)
         )
 
-    def parse_vtt_to_lines(self, s: str) -> List[AssetTranscriptLine]:
+    def parse_vtt_to_lines(self, s: str) -> List[TikTokTranscriptLine]:
         """
         Best-effort VTT/SRT timecode parsing into structured lines.
         """
@@ -506,7 +505,7 @@ class TikTokScraper_ORIGINAL:
 
         s = s.replace("\r\n", "\n").replace("\r", "\n")
 
-        lines_out: List[AssetTranscriptLine] = []
+        lines_out: List[TikTokTranscriptLine] = []
         current_text: List[str] = []
         start_ms: Optional[int] = None
         end_ms: Optional[int] = None
@@ -525,7 +524,7 @@ class TikTokScraper_ORIGINAL:
                 dur = int(max(0, end_ms - start_ms))
                 ticks = (offset + dur) * self.TICKS_PER_MS
                 lines_out.append(
-                    AssetTranscriptLine(
+                    TikTokTranscriptLine(
                         offset_ms=offset, duration_ms=dur, total_ticks=ticks, content=content
                     )
                 )
@@ -673,8 +672,11 @@ class TikTokScraper_ORIGINAL:
         download_archive: Optional[str] = "tiktok_seen.txt",
         retries: int = 2,
     ) -> Dict[str, Any]:
-        with YoutubeDL(self._ydl_opts_hydrate(proxy, retries=retries, download_archive=download_archive)) as ydl:
+        yt_options = self._ydl_default_options(proxy,10)
+        with YoutubeDL(yt_options) as ydl:
             return ydl.extract_info(video_url, download=False)
+        # with YoutubeDL(self._ydl_opts_hydrate(proxy, retries=retries, download_archive=download_archive)) as ydl:
+        #     return ydl.extract_info(video_url, download=False)
 
     # -----------------------------
     # Transcript enrichment for a hydrated video dict

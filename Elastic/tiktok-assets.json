@@ -53,18 +53,7 @@
       "thumbnails": { "type": "object", "enabled": false },
       "subtitles": { "type": "object", "enabled": false },
       "transcript_lang": { "type": "keyword", "normalizer": "lc_norm" },
-      "transcript_text": { "type": "text" },
-      "transcript_hashes": { "type": "keyword" },
-      "transcript_lines": {
-        "type": "nested",
-        "properties": {
-          "offset_ms": { "type": "integer" },
-          "duration_ms": { "type": "integer" },
-          "total_ticks": { "type": "long" },
-          "content": { "type": "text" },
-          "content_hash": { "type": "keyword" }
-        }
-      }
+      "transcript_hashes": { "type": "keyword" }
     }
   }
 }

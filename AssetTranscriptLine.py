@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, Optional
 
 @dataclass(frozen=True)
-class AssetTranscriptLine:
+class AssetTranscriptLine_OLD:
     offset_ms: int
     duration_ms: int
     total_ticks: int

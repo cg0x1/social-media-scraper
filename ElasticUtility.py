@@ -10,6 +10,7 @@ class ElasticUtility:
     
     def __init__():
         pass
+    
     def utc_now_iso() -> str:
         return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -25,9 +26,9 @@ class ElasticUtility:
 
 
 
-    CREATOR_ENTITIES = "creator-entities"
-    CREATOR_ACCOUNTS = "creator-accounts"
-    CREATOR_ACCOUNT_LINKS = "creator-account-links"
+    CREATOR_ENTITIES = "tiketok-source-entities"
+    CREATOR_ACCOUNTS = "tiktok-sources"
+    CREATOR_ACCOUNT_LINKS = "tiktok-source-links"
 
     def upsert_creator_entity(self,
         es: Elasticsearch,
@@ -223,7 +224,7 @@ class ElasticUtility:
 
     def bulk_upsert_creator_accounts(self, es: Elasticsearch, docs: List[Dict[str, Any]]) -> None:
         """
-        docs must already match the creator-accounts mapping and include deterministic _id in docs['account_id'].
+        docs must already match the tiktok-sources mapping and include deterministic _id in docs['account_id'].
         """
         actions = []
         for d in docs:
