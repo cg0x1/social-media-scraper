@@ -15,15 +15,16 @@ from yt_dlp import YoutubeDL
 from TikTokAsset import TikTokAsset
 from TikTokAssetTranscript import TikTokAssetTranscript, TikTokTranscriptLine
 from RateLimiter import RateLimiter
+from RabbitMqPublisher import RabbitMqPublisher
 
 """
 Generic type definition
 """
 T = TypeVar("T")
 
-# ============================================================
-# Shared utilities + contracts
-# ============================================================
+# ================
+# Shared utilities
+# ================
 
 def utc_now_iso() -> str:
     """
@@ -59,6 +60,7 @@ def iso_utc_to_epoch(iso_str: str) -> int:
     dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
     return int(dt.timestamp())
 
+
 class ScrapeError(RuntimeError):
     """
     Docstring for ScrapeError
@@ -72,7 +74,6 @@ class ScrapeError(RuntimeError):
     :var backoff: Description
     """
     pass
-
 
 class ParseError(RuntimeError):
     """
@@ -88,7 +89,6 @@ class ParseError(RuntimeError):
     """
     pass
 
-
 class StorageError(RuntimeError):
     """
     Docstring for StorageError
@@ -103,6 +103,7 @@ class StorageError(RuntimeError):
     """
     pass
 
+# Same idea as an ILogger<T> as a ctor parameter in C#
 class LoggerMixin:
     """
     Convenience mixin so every class has a logger with consistent naming.
@@ -112,9 +113,9 @@ class LoggerMixin:
         return logging.getLogger(self.__class__.__name__)
 
 
-# ============================================================
-# 1) Web Scraping / Fetching Concern
-# ============================================================
+# ===========================================
+# Web Scraping / Fetching
+# ===========================================
 
 class TikTokScraper(LoggerMixin):
     """
@@ -228,6 +229,22 @@ class TikTokScraper(LoggerMixin):
         return opts
 
     def inventory(self, playlist_url: str, *, proxy: str, limit: int, inventory_archive: str) -> List[Dict[str, Any]]:
+        """
+        Performs the action of searching for a processing new TikTok videos
+
+        Args:
+            playlist_url (str): _description_
+            proxy (str): _description_
+            limit (int): _description_
+            inventory_archive (str): _description_
+
+        Raises:
+            ValueError: _description_
+            ScrapeError: _description_
+
+        Returns:
+            List[Dict[str, Any]]: _description_
+        """
         try:
             if not proxy or len(proxy) == 0:                
                 raise ValueError(f"A proxy must be provided!")
@@ -458,10 +475,9 @@ class CaptionTrackSelector:
         return next(iter(captions_by_lang.keys()), None)
 
 
-# ============================================================
-# Object creation ONLY (no ES, no web calls)
-# ============================================================
-
+# ====================
+# Asset creation ONLY
+# ====================
 class TikTokAssetFactory(LoggerMixin):
     """
     Builds TikTokAsset + TikTokAssetTranscript from hydrated yt-dlp output + parsed transcripts.
@@ -610,10 +626,9 @@ class TikTokAssetFactory(LoggerMixin):
         return asset, transcript
 
 
-# ================================
-# 3) execution history persistence
-# ================================
-
+# ============================================
+# Execution (tracing) history and persistence
+# ============================================
 class CrawlStateRepository(LoggerMixin):
     """CRUD for crawl tracing history/state."""
     DEFAULT_STATE_INDEX = "tiktok-crawl-state"
@@ -627,6 +642,9 @@ class CrawlStateRepository(LoggerMixin):
         return f"{platform}:{profile}"
 
     def ensure_index(self) -> None:
+        """
+        Enforces the Elasticsearch index exists for the trace data
+        """
         if self.es.indices.exists(index=self.index):
             return
         self.es.indices.create(
@@ -667,11 +685,136 @@ class CrawlStateRepository(LoggerMixin):
             raise StorageError(f"Failed saving state: {ex}") from ex
 
 
-# ================================
-# 3) Asset persistence
-# ================================
+# ==================
+# Asset persistence
+# ==================
+class TikTokAssetRepository:
+    DEFAULT_ASSET_INDEX = "tiktok-assets"
 
-class TikTokAssetRepository(LoggerMixin):
+    def __init__(self, es: Elasticsearch, *, index: str = DEFAULT_ASSET_INDEX):
+        self.es = es
+        self.index = index
+
+    def ensure_index_exists(self) -> None:
+        if not self.es.indices.exists(index=self.index):
+            raise StorageError(f"Missing index '{self.index}'.")
+
+    # -------------------------
+    # Single-doc existence check
+    # -------------------------
+    def exists(self, asset_id: str) -> bool:
+        if not asset_id:
+            return False
+        # Uses ES HEAD /{index}/_doc/{id} under the hood via the client.
+        return bool(self.es.exists(index=self.index, id=asset_id))
+
+    # -------------------------
+    # Batch existence checks (fast)
+    # -------------------------
+    def existing_ids_mget(self, asset_ids: List[str]) -> Set[str]:
+        """
+        Fastest ID existence check when you already have document IDs.
+        Uses _mget via client, returns set of IDs that exist.
+        """
+        asset_ids = [x for x in asset_ids if x]
+        if not asset_ids:
+            return set()
+
+        resp = self.es.mget(
+            index=self.index,
+            body={"ids": asset_ids},
+            _source=False,
+        )
+        docs = resp.get("docs") or []
+        return {d["_id"] for d in docs if d.get("found")}
+
+    def existing_ids_terms_query(self, asset_ids: List[str]) -> Set[str]:
+        """
+        Alternative existence check using a terms query on asset_id field.
+        Use this if your _id is NOT asset_id.
+        """
+        asset_ids = [x for x in asset_ids if x]
+        if not asset_ids:
+            return set()
+
+        resp = self.es.search(
+            index=self.index,
+            size=min(len(asset_ids), 10000),
+            _source=False,
+            body={
+                "query": {"terms": {"asset_id": asset_ids}},
+                "fields": [],
+            },
+        )
+        hits = ((resp.get("hits") or {}).get("hits") or [])
+        # If asset_id is your _id, you can just read _id; otherwise parse fields.
+        return {h.get("_id") for h in hits if h.get("_id")}
+
+    # -------------------------
+    # Indexing (no pre-check, best practice)
+    # -------------------------
+    def create_only_bulk(self, docs: Iterable[Dict[str, Any]], *, refresh: bool = False) -> Dict[str, int]:
+        """
+        Create-only indexing:
+        - If doc already exists, ES returns 409 conflict (we count as 'conflicts').
+        - No need to call exists() first (avoids N extra calls).
+        """
+        actions = []
+        for d in docs:
+            doc_id = d.get("asset_id")  # assume you use asset_id as ES _id
+            if not doc_id:
+                continue
+            actions.append({"_op_type": "create", "_index": self.index, "_id": doc_id, "_source": d})
+
+        if not actions:
+            return {"attempted": 0, "created": 0, "conflicts": 0, "errors": 0}
+
+        created = conflicts = errors = attempted = 0
+        for ok, item in helpers.streaming_bulk(
+            self.es,
+            actions,
+            raise_on_error=False,
+            raise_on_exception=False,
+            yield_ok=True,
+        ):
+            attempted += 1
+            op = item.get("create") or {}
+            status = op.get("status")
+            if ok and status in (200, 201):
+                created += 1
+            elif status == 409:
+                conflicts += 1
+            else:
+                errors += 1
+
+        if refresh:
+            self.es.indices.refresh(index=self.index)
+
+        return {"attempted": attempted, "created": created, "conflicts": conflicts, "errors": errors}
+
+    # -------------------------
+    # Indexing (explicit pre-check, what you asked for)
+    # -------------------------
+    def create_only_bulk_after_check(
+        self,
+        docs: List[Dict[str, Any]],
+        *,
+        refresh: bool = False,
+    ) -> Dict[str, int]:
+        """
+        Explicitly checks existence before indexing (batch), then creates only missing docs.
+        Note: this costs an extra round-trip but avoids 409 conflicts.
+        """
+        ids = [d.get("asset_id") for d in docs if d.get("asset_id")]
+        existing = self.existing_ids_mget(ids)
+
+        to_create = [d for d in docs if d.get("asset_id") and d["asset_id"] not in existing]
+        result = self.create_only_bulk(to_create, refresh=refresh)
+        result["skipped_existing"] = len(existing)
+        result["attempted_input"] = len(docs)
+        return result
+
+class TikTokAssetRepository_ORIGINAL(LoggerMixin):
     """CRUD for video storage in the `tiktok-assets` index."""
     DEFAULT_ASSET_INDEX = "tiktok-assets"
 
@@ -716,7 +859,6 @@ class TikTokAssetRepository(LoggerMixin):
             self.es.indices.refresh(index=self.index)
 
         return {"attempted": attempted, "created": created, "conflicts": conflicts, "errors": errors}
-
 
 class TikTokAssetTranscriptRepository(LoggerMixin):
     """CRUD for transcript storage in the `tiktok-asset-transcripts` index."""
@@ -765,10 +907,9 @@ class TikTokAssetTranscriptRepository(LoggerMixin):
         return {"attempted": attempted, "created": created, "conflicts": conflicts, "errors": errors}
 
 
-# ============================================================
-# 4) Orchestration
-# ============================================================
-
+# =======================
+# Workflow Orchestration
+# =======================
 class TikTokCrawlService(LoggerMixin):
     """
     Orchestrates:
@@ -1038,6 +1179,7 @@ class TikTokCrawlService(LoggerMixin):
             "flags": flags,
         }
 
+
     def crawl_newest_with_es_state(self,
                                    *,
                                    profile: str,
@@ -1050,7 +1192,7 @@ class TikTokCrawlService(LoggerMixin):
                                    save_assets: bool = True,
                                 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
         """
-        Crawls the specified profile using Elasticsearch for historical tracing persistence
+        Entry point to the process. Crawls the specified profile using Elasticsearch for historical tracing persistence
         
         :param self: a reference
         :param profile: the TikTok profile

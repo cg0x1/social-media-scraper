@@ -140,19 +140,21 @@ if __name__ == "__main__":
     
     service = build_tiktok_crawl_service(es, state_index="tiktok-crawl-state", asset_index="tiktok-assets", hash_len=32)
     
-    target_profile = "@meidastouch"
+    TARGET_PROFILE = "@sciencechannel" # <-- CHANGE THIS FOR NEW TEST
     
-    target_profile_url = f"https://www.tiktok.com/{target_profile}"
+    MAX_VIDEOS = 5 # <-- set low, so TikTok doesn't kick-off
+    
+    target_profile_url = f"https://www.tiktok.com/{TARGET_PROFILE}"
     
 
-    target_source_id = "tiktok:0000000000001"
+    target_source_id = "tiktok:0000000000001" # <-- not readl; just for testing
     
-    videos, run_metrics, state = service.crawl_newest_with_es_state(profile=target_profile,
+    videos, run_metrics, state = service.crawl_newest_with_es_state(profile=TARGET_PROFILE,
                                                                     playlist_url=target_profile_url,
                                                                     source_id=target_source_id,
                                                                     proxy=PROXY_URL,
-                                                                    inventory_limit=5,
-                                                                    hydrate_cap=5,                                                                    
+                                                                    inventory_limit=MAX_VIDEOS,
+                                                                    hydrate_cap=MAX_VIDEOS,                                                                    
                                                                     download_archive="tiktok_seen.txt",
                                                                     save_assets=True,)
 
